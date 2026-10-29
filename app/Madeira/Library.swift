@@ -4957,6 +4957,16 @@ struct LibraryHUD: View {
                     launchGlyph(showLogs ? "Hide live log" : "Show live log", "text.alignleft", on: showLogs) {
                         model.toggleLaunchLogs()
                     }
+                    if dockStart.noReportStalled {
+                        ShareLink(item: LogStore.shared.logURL) {
+                            Label("Export diagnostic log", systemImage: "square.and.arrow.up")
+                                .font(.subheadline.weight(.semibold))
+                                .padding(.horizontal, 12).frame(minHeight: 44)
+                                .background(.white.opacity(0.2), in: Capsule())
+                        }
+                        .tint(.white)
+                        .accessibilityHint("Opens the iOS share sheet for the current Madeira diagnostic log")
+                    }
                     if dockStart.holding {
                         launchGlyph("Show desktop", "macwindow") { dockStart.showDesktop(model) }
                             .accessibilityHint("Shows the Windows desktop")
@@ -5007,6 +5017,16 @@ struct LibraryHUD: View {
                     }
                     launchGlyph(showLogs ? "Hide live log" : "Show live log", "text.alignleft", on: showLogs) {
                         model.toggleLaunchLogs()
+                    }
+                    if dockStart.noReportStalled {
+                        ShareLink(item: LogStore.shared.logURL) {
+                            Label("Export diagnostic log", systemImage: "square.and.arrow.up")
+                                .font(.subheadline.weight(.semibold))
+                                .padding(.horizontal, 12).frame(minHeight: 44)
+                                .background(.white.opacity(0.2), in: Capsule())
+                        }
+                        .tint(.white)
+                        .accessibilityHint("Opens the iOS share sheet for the current Madeira diagnostic log")
                     }
                     if dockStart.holding {
                         launchGlyph("Show desktop", "macwindow") { dockStart.showDesktop(model) }
