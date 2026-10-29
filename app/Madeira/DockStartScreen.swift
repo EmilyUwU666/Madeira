@@ -204,6 +204,8 @@ struct SteamLaunchHold {
 enum DockStartStatus {
     /// Seconds without the host's first field before the text says it is late.
     static let slowAfter = 30.0
+    /// Diagnostic threshold only: lack of a report is not proof the host exited.
+    static let noReportAfter = 90.0
 
     /// What the start is doing. `installers`: this start runs the game's one-time
     /// installs first; `installerProgress`: their progress in words;
@@ -247,7 +249,9 @@ enum DockStartStatus {
         }
         if hostStarted(fields) { return "Loading Steam…" }
         // Before the host's first field: the one-time installs run first, then the host starts.
-        let starting = waited >= slowAfter ? "Still starting Madeira Dock…" : "Starting Madeira Dock…"
+        let starting = waited >= noReportAfter
+            ? "Madeira Dock has not reported a startup stage after 90 seconds. You can show the Wine desktop and export the diagnostic log."
+            : (waited >= slowAfter ? "Still starting Madeira Dock…" : "Starting Madeira Dock…")
         guard installers else { return starting }
         guard installsFinished else { return installerProgress ?? "Running this game's one-time installs…" }
         if let restartHint { return (installerProgress ?? "One-time installs finished.") + "\n" + restartHint }
@@ -295,6 +299,7 @@ final class DockStartScreen: ObservableObject {
     private var early = Set<UInt64>()
     private var hostStarted = false
     private var exitObserved = false
+    private var noReportLogged = false
     private var started = Date()
     private let places = SteamLaunchScene.Places.standard
 
@@ -303,7 +308,7 @@ final class DockStartScreen: ObservableObject {
         endHold(reason: nil)
         winios_window_census_enable(0)
         active = game != nil; appID = game?.id; failure = nil
-        exitObserved = false; hostStarted = false; early = []; started = start
+        exitObserved = false; hostStarted = false; noReportLogged = false; early = []; started = start
         guard let game, MadeiraConfig.flag("MADEIRA_DOCK_HIDE_DESKTOP") else { return }   // 0: a Dock start's starting screen ends on the desktop's first frame, as before
         let hold = SteamLaunchHold(autoReveal: MadeiraConfig.flag("MADEIRA_DOCK_AUTO_REVEAL"))   // 0: a window that may need the user never reveals the desktop by itself (Show desktop still does)
         self.hold = hold; sceneLines = 0; holding = true
@@ -336,6 +341,14 @@ final class DockStartScreen: ObservableObject {
                     MainActor.assumeIsolated { MadeiraDock.cleanup() }
                 }
             }
+        }
+        // Report absence alone cannot distinguish a loader hang from a slow launch.
+        // Emit one privacy-safe diagnostic breadcrumb even if the desktop hold is off.
+        if !noReportLogged && !exitObserved && elapsed >= DockStartStatus.noReportAfter &&
+            MadeiraConfig.flag("MADEIRA_DOCK_STATUS") &&
+            !DockStartStatus.hostStarted((report ?? MainActor.assumeIsolated { MadeiraDock.pollReport() }).fields) {
+            noReportLogged = true
+            LogStore.shared.log("[dock-status] no-first-stage elapsed=\(Int(elapsed))s; host state unknown", level: .error)
         }
         guard var hold else { return }
         if !hostStarted {
