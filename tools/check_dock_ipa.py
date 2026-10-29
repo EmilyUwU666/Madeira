@@ -41,6 +41,9 @@ def check(ipa: Path) -> None:
                 pe_offset = int.from_bytes(payload[0x3c:0x40], "little")
                 if payload[pe_offset:pe_offset + 4] != b"PE\x00\x00":
                     raise ValueError("Dock executable lacks PE signature")
+                machine = int.from_bytes(payload[pe_offset + 4:pe_offset + 6], "little")
+                if machine != 0x8664:
+                    raise ValueError(f"Unexpected Dock PE machine: 0x{machine:04x} (expected x86-64)")
             print(f"OK {path}: {len(payload)} bytes")
     print("Dock packaging checks passed. Device startup remains unverified.")
 
