@@ -299,6 +299,7 @@ final class DockStartScreen: ObservableObject {
     private var early = Set<UInt64>()
     private var hostStarted = false
     private var exitObserved = false
+    @Published private(set) var noReportStalled = false
     private var noReportLogged = false
     private var started = Date()
     private let places = SteamLaunchScene.Places.standard
@@ -308,7 +309,7 @@ final class DockStartScreen: ObservableObject {
         endHold(reason: nil)
         winios_window_census_enable(0)
         active = game != nil; appID = game?.id; failure = nil
-        exitObserved = false; hostStarted = false; noReportLogged = false; early = []; started = start
+        exitObserved = false; hostStarted = false; noReportLogged = false; noReportStalled = false; early = []; started = start
         guard let game, MadeiraConfig.flag("MADEIRA_DOCK_HIDE_DESKTOP") else { return }   // 0: a Dock start's starting screen ends on the desktop's first frame, as before
         let hold = SteamLaunchHold(autoReveal: MadeiraConfig.flag("MADEIRA_DOCK_AUTO_REVEAL"))   // 0: a window that may need the user never reveals the desktop by itself (Show desktop still does)
         self.hold = hold; sceneLines = 0; holding = true
@@ -320,7 +321,7 @@ final class DockStartScreen: ObservableObject {
     func finish() {
         endHold(reason: "session-ended")
         winios_window_census_enable(0)
-        active = false; appID = nil; failure = nil
+        active = false; appID = nil; failure = nil; noReportStalled = false
     }
 
     /// Every 0.5 s from LibraryModel.poll while a session runs. `rendered`: D3D
@@ -348,7 +349,11 @@ final class DockStartScreen: ObservableObject {
             MadeiraConfig.flag("MADEIRA_DOCK_STATUS") &&
             !DockStartStatus.hostStarted((report ?? MainActor.assumeIsolated { MadeiraDock.pollReport() }).fields) {
             noReportLogged = true
+            noReportStalled = true
             LogStore.shared.log("[dock-status] no-first-stage elapsed=\(Int(elapsed))s; host state unknown", level: .error)
+        }
+        if noReportStalled && DockStartStatus.hostStarted((report ?? MainActor.assumeIsolated { MadeiraDock.pollReport() }).fields) {
+            noReportStalled = false
         }
         guard var hold else { return }
         if !hostStarted {
