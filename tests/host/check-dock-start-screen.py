@@ -263,6 +263,7 @@ func window(_ image: String, _ w: Int, _ h: Int, visible: Bool = true, drawn: Bo
         require(text([:], waited: 29) == "Starting Madeira Dock…" && text([:], waited: 30) == "Still starting Madeira Dock…",
                 "after 30 s without its first field the host is late")
         require(text(started) == "Loading Steam…" && text(loaded) == "Loading Steam…", "host started: Valve's client loads")
+        require("has not reported a startup stage after 90 seconds" in text([:], waited: 90), "no first report after 90 seconds is diagnosed")
         require(text(started, waited: 300) == "Loading Steam…", "late only matters before the host's first field")
         require(text(submitted) == "Signing in to Steam…" && text(["probe-start-bits": "64", "session-logon-start-result": "1"]) == "Signing in to Steam…",
                 "the sign-in was submitted")
