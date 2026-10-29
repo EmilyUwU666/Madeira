@@ -292,6 +292,7 @@ final class DockStartScreen: ObservableObject {
 
     private var hold: SteamLaunchHold?
     private var sceneLines = 0
+    private var lastDiagnosticCheckpoint = 0
     private var early = Set<UInt64>()
     private var hostStarted = false
     private var exitObserved = false
@@ -303,7 +304,7 @@ final class DockStartScreen: ObservableObject {
         endHold(reason: nil)
         winios_window_census_enable(0)
         active = game != nil; appID = game?.id; failure = nil
-        exitObserved = false; hostStarted = false; early = []; started = start
+        exitObserved = false; hostStarted = false; early = []; started = start; lastDiagnosticCheckpoint = 0
         guard let game, MadeiraConfig.flag("MADEIRA_DOCK_HIDE_DESKTOP") else { return }   // 0: a Dock start's starting screen ends on the desktop's first frame, as before
         let hold = SteamLaunchHold(autoReveal: MadeiraConfig.flag("MADEIRA_DOCK_AUTO_REVEAL"))   // 0: a window that may need the user never reveals the desktop by itself (Show desktop still does)
         self.hold = hold; sceneLines = 0; holding = true
@@ -344,6 +345,28 @@ final class DockStartScreen: ObservableObject {
         let windows = Self.censusWindows()
         // Windows shown before the host started belong to the one-time installs.
         if !hostStarted { for window in windows where window.visible { early.insert(window.hwnd) } }
+        // Periodic, privacy-safe launch checkpoints. In particular, distinguish a
+        // missing Dock host report from a host waiting for Steam or a game window.
+        // These go to the existing Diagnostics export; no new button is needed.
+        let checkpoint = elapsed >= 120 ? 5 : elapsed >= 90 ? 4 : elapsed >= 60 ? 3 : elapsed >= 30 ? 2 : elapsed >= 15 ? 1 : 0
+        if checkpoint > lastDiagnosticCheckpoint {
+            lastDiagnosticCheckpoint = checkpoint
+            let fields = (report ?? MainActor.assumeIsolated { MadeiraDock.pollReport() }).fields
+            let stage: String
+            if fields["launch-client-error"] == "0" { stage = "game-window-wait" }
+            else if fields["session-requested-app-listed"] == "1" { stage = "license-confirmed" }
+            else if fields["session-authenticated-online"] == "1" { stage = "license-wait" }
+            else if fields["session-native-token-submitted"] != nil || fields["session-logon-start-result"] != nil { stage = "steam-sign-in" }
+            else if DockStartStatus.hostStarted(fields) { stage = "dockhost-reported" }
+            else { stage = "no-dockhost-report" }
+            let visible = windows.filter(\\.visible)
+            let owners = visible.reduce(into: [String: Int]()) { counts, window in
+                counts[SteamLaunchScene.owner(window.image, places: places).rawValue, default: 0] += 1
+            }
+            let ownerSummary = owners.keys.sorted().map { "\\($0):\\(owners[$0] ?? 0)" }.joined(separator: ",")
+            let drawn = visible.filter(\\.drawn).count
+            LogStore.shared.log("[dock-checkpoint] elapsed=\\(Int(elapsed))s stage=\\(stage) host-report=\\(DockStartStatus.hostStarted(fields) ? 1 : 0) result=\\(report?.result.map(String.init) ?? "none") windows=\\(windows.count) visible=\\(visible.count) drawn=\\(drawn) owners=\\(ownerSummary) rendered=\\(rendered ? 1 : 0) scene=\\(hold.scene.name)")
+        }
         let installerReveal = MadeiraConfig.flag("MADEIRA_DOCK_INSTALLER_REVEAL")   // 0: a one-time installer's dialog never reveals the desktop by itself
         let decision = SteamLaunchScene.decide(windows, rendered: rendered, places: places, early: early, installerReveal: installerReveal)
         if decision.scene != hold.scene, sceneLines < 24 {
