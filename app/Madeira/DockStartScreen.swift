@@ -359,13 +359,13 @@ final class DockStartScreen: ObservableObject {
             else if fields["session-native-token-submitted"] != nil || fields["session-logon-start-result"] != nil { stage = "steam-sign-in" }
             else if DockStartStatus.hostStarted(fields) { stage = "dockhost-reported" }
             else { stage = "no-dockhost-report" }
-            let visible = windows.filter(\\.visible)
+            let visible = windows.filter(\.visible)
             let owners = visible.reduce(into: [String: Int]()) { counts, window in
                 counts[SteamLaunchScene.owner(window.image, places: places).rawValue, default: 0] += 1
             }
-            let ownerSummary = owners.keys.sorted().map { "\\($0):\\(owners[$0] ?? 0)" }.joined(separator: ",")
-            let drawn = visible.filter(\\.drawn).count
-            LogStore.shared.log("[dock-checkpoint] elapsed=\\(Int(elapsed))s stage=\\(stage) host-report=\\(DockStartStatus.hostStarted(fields) ? 1 : 0) result=\\(report?.result.map(String.init) ?? "none") windows=\\(windows.count) visible=\\(visible.count) drawn=\\(drawn) owners=\\(ownerSummary) rendered=\\(rendered ? 1 : 0) scene=\\(hold.scene.name)")
+            let ownerSummary = owners.keys.sorted().map { "\($0):\(owners[$0] ?? 0)" }.joined(separator: ",")
+            let drawn = visible.filter(\.drawn).count
+            LogStore.shared.log("[dock-checkpoint] elapsed=\(Int(elapsed))s stage=\(stage) host-report=\(DockStartStatus.hostStarted(fields) ? 1 : 0) result=\(report?.result.map { String($0) } ?? "none") windows=\(windows.count) visible=\(visible.count) drawn=\(drawn) owners=\(ownerSummary) rendered=\(rendered ? 1 : 0) scene=\(hold.scene.name)")
         }
         let installerReveal = MadeiraConfig.flag("MADEIRA_DOCK_INSTALLER_REVEAL")   // 0: a one-time installer's dialog never reveals the desktop by itself
         let decision = SteamLaunchScene.decide(windows, rendered: rendered, places: places, early: early, installerReveal: installerReveal)
