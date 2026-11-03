@@ -604,6 +604,23 @@ enum StikJITHelper {
                 prevEnd = max(prevEnd, addr + vm_address_t(rsize))
                 addr = prevEnd
             }
+            // The VM census reports mapped regions, not free regions. If the
+            // last region ends before guestLo (or vm_region_64 returns no more
+            // mappings), the trailing free run is otherwise invisible. That
+            // can incorrectly force a tiny JIT fallback despite a large safe
+            // hole at the upper end of the allowed pool-search range.
+            //
+            // Clamp to guestLo: the guest window must never be considered a
+            // JIT candidate. Do not reserve or change protections here.
+            if prevEnd < vm_address_t(guestLo) {
+                let trailing = vm_address_t(guestLo) - prevEnd
+                if trailing >= 64 << 20 {
+                    holes.append((base: prevEnd, size: trailing))
+                    LogStore.shared.log(String(format:
+                        "[jit-census] included trailing free run 0x%lx+%luMB (guestLo boundary)",
+                        Int(prevEnd), Int(trailing >> 20)))
+                }
+            }
             let desc = holes.map { String(format: "0x%lx+%luMB", Int($0.base), Int($0.size >> 20)) }.joined(separator: " ")
             LogStore.shared.log("ml1036: free holes >=64MB in [0x119000000,0x7000000000) with the window held: "
                 + (desc.isEmpty ? "NONE" : desc))
