@@ -1394,7 +1394,7 @@ extension GameRecommendations {
     /// Experimental JIT allocation workaround; not yet device-verified.
     static let sonicCrossWorlds = GameRecommendation(
         id: "sonic-crossworlds-jit-experimental", title: "Sonic Racing: CrossWorlds",
-        version: 2,
+        version: 3,
         config: """
         # High-memory device experiment: request a 2048 MB JIT pool.
         # This is a target, not a guaranteed allocation; Madeira may shrink it
@@ -1405,6 +1405,10 @@ extension GameRecommendations {
         env.MADEIRA_X64_IMAGE_NOCOPY = 1
         pool-split = 1
         pool-page-fit = 1
+        # Reserve a separate region below the fixed-base executable window for
+        # translated code buffers. This reduces contention in the main JIT pool.
+        pool-low = 1
+        pool-low-margin = 128
         """,
         avx: true, nvidia: true, wineVCRT: true, display: "fit")
 
